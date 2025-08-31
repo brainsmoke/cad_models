@@ -56,6 +56,9 @@ module vesa_plate(d=0)
 
 }
 
+module vesa_adapter()
+{
+
 difference()
 {
 	union()
@@ -118,5 +121,7 @@ difference()
 	cylinder(h=vesa_hole_cutout+e2, r=vesa_hole_d/2);
 }
 
+}
 
+vesa_adapter();
 
