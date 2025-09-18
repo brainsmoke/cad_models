@@ -1,18 +1,29 @@
 $fn=50;
 e=.001;
-big=999;
-dim = [25,35,6];
-border_r = 3;
+
+height=6;
+depth=35;
 pitch = 5;
 n_cables=4;
 
+border_r = 3;
+side_border=2.9;
+inner_wall_thickness=.8;
+bottom_thickness = .6;
+
 cable_d=1.5;
 screw_d=3.2;
+screw_wall_margin=2.5;
 screw_head=5.9;
-screw_head_border = 1.2;
+screw_head_border = .6;
 screw_head_depth=1;
 
+print_separation=2;
+
 n_screws_per_side = ceil(n_cables/2);
+
+dim = [2*side_border+n_cables*pitch-inner_wall_thickness,depth,height];
+cavity_dim = [ pitch - inner_wall_thickness, dim.y - 4*screw_wall_margin, dim.z-2*bottom_thickness ] ;
 
 module do_center(dim, center)
 {
@@ -25,91 +36,119 @@ module do_center(dim, center)
 
 module rounded_box(dim, r, center=false)
 {
-	dim_inner = dim-[2*r, 2*r, 0];
-	do_center(dim_inner, center)
+	do_center(dim, center)
 	hull()
 	{
-		for (x=[0,dim_inner.x])
-		for (y=[0,dim_inner.y])
+		for (x=[r,dim.x-r])
+		for (y=[r,dim.y-r])
 		translate([x,y,0])
-        cylinder(h=dim_inner.z,r=r);
+        cylinder(h=dim.z,r=r);
 	}
 }
 
-module cables()
+module at_cables()
 {
-for (dx=[-7.5, -2.5, 2.5, 7.5])
-translate([dx, 0,0])
-rotate([90,0,0])
-cylinder(dim.y+2*e, d=cable_d, center=true);
+	for (i=[0:n_cables-1])
+	{
+		dx = pitch*(  i-(n_cables-1)/2 );
+		translate([dx, 0,0])
+		children();
+	}
+}
+
+module cable()
+{
+	rotate([90,0,0])
+	cylinder(dim.y+2*e, d=cable_d, center=true);
 }
 
 
 module at_screws()
 {
-for (x=[-5,5])
-for (y=[-15,15])
-translate([x,y,0])
-children();
+	y_off = dim.y/2 - screw_wall_margin;
+	for (i=[0:n_screws_per_side-1])
+	{
+		x = 2*pitch*i - pitch*(n_cables/2-1);
+		for (y=[-y_off,y_off])
+		translate([x,y,0])
+		children();
+	}
 }
 
-module block()
+module hex_prism(h, r)
+{
+	cylinder(h=h, r=r*2/sqrt(3), $fn=6);
+}
+
+module clamp()
 {
 	difference()
 	{
-		rounded_box(dim, r=3, center=true);
+		rounded_box(dim, r=border_r, center=true);
 
 		difference()
-{
-		union()
 		{
-for (dx=[-7.5, -2.5, 2.5, 7.5])
-translate([dx, 0,0])
-			cube([4.2,25,4.8], center=true);
-			cables();
+			at_cables()
+			{
+				cube(cavity_dim, center=true);
+				cable();
+			}
+
+			at_screws()
+			translate([0,0,-dim.z/2-e])
+			hex_prism(screw_head_depth+bottom_thickness + e, screw_head/2+screw_head_border);
 		}
-at_screws()
-translate([0,0,-3-e])
-cylinder(h=e+2,d=(screw_head+screw_head_border)*2/sqrt(3),$fn=6);
 
-}
-at_screws()
-translate([0,0,-5])
-cylinder(h=10,d=screw_d);
-
-at_screws()
-translate([0,0,-3-e])
-cylinder(h=e+screw_head_depth,d=screw_head*2/sqrt(3),$fn=6);
+		at_screws()
+		translate([0,0,-dim.z/2-e])
+		{
+			cylinder(h=dim.z+2*e,d=screw_d);
+			hex_prism(screw_head_depth+e, r=screw_head/2);
+		}
 	}
 }
 
 module split()
 {
-	union()
+	translate([-(dim.x+e)/2, -(dim.y+e)/2, 0])
+	cube([dim.x+e, dim.y+e, dim.z/2+e]);
+}
+
+module top()
+{
+	intersection()
 	{
-		translate([-big/2, -big/2,0])
-		cube([big,big,big]);
-		difference()
-		{
-			cube([21,26,2], center=true);
-cube([18,37,3], center=true);
-			
-		}
+		children();
+		split();
 	}
 }
 
-translate([27,0,0])
-rotate([180,0,0])
-intersection()
+module bottom()
 {
-	block();
-	split();
+	difference()
+	{
+		children();
+		split();
+	}
 }
 
-
-difference()
+module flip()
 {
-	block();
-	split();
+	rotate([180,0,0])
+	children();
 }
+
+module next()
+{
+	translate([dim.x+print_separation,0,0])
+	children();
+}
+
+flip()
+top()
+clamp();
+
+next()
+bottom()
+clamp();
 
