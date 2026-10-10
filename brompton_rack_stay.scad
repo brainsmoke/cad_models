@@ -2,7 +2,7 @@ e=.001;
 
 d = 225;
 
-hole_d=4;
+hole_d=5;
 
 r=9;
 border=2;
